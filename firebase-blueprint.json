@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user information and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "photoURL": { "type": "string", "description": "URL to profile photo" },
+        "role": { "type": "string", "enum": ["admin", "archaeologist"], "description": "User role" },
+        "specialization": { "type": "string", "description": "Area of expertise" },
+        "education": { "type": "string", "description": "Educational background" },
+        "institution": { "type": "string", "description": "Affiliated institution" },
+        "experience": { "type": "string", "description": "Years of field experience" },
+        "bio": { "type": "string", "description": "Personal biography or motto" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Artifact": {
+      "title": "Artifact",
+      "description": "Details of an archaeological artifact.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique artifact ID" },
+        "title": { "type": "string", "description": "Name of the artifact" },
+        "inventoryNo": { "type": "string", "description": "Official inventory number" },
+        "description": { "type": "string", "description": "Detailed description" },
+        "imageUrl": { "type": "string", "description": "URL to artifact image" },
+        "location": { "type": "string", "description": "Discovery location" },
+        "period": { "type": "string", "description": "Historical period" },
+        "createdBy": { "type": "string", "description": "UID of the user who recorded it" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "inventoryNo", "createdBy"]
+    },
+    "MapDrawing": {
+      "title": "Map Drawing",
+      "description": "Cartographic documentation data.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "data": { "type": "string", "description": "Serialized map data" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "data", "createdBy"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "Collection of user profiles."
+    },
+    "/artifacts/{artifactId}": {
+      "schema": "Artifact",
+      "description": "Collection of recorded artifacts."
+    },
+    "/maps/{mapId}": {
+      "schema": "MapDrawing",
+      "description": "Collection of cartographic drawings."
+    }
+  }
+}

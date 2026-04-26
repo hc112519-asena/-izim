@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HATİCE CEYLAN ARKEOLOJİK BULUNTU ÇİZİM ATÖLYESİ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:ital,wght@0,300;0,400;0,700;1,400&family=Caveat:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'arch-paper': '#fdfbf7',
+              'arch-sand': '#e6dec8',
+              'arch-clay': '#a67c52',
+              'arch-dark': '#3c3633',
+              'arch-ink': '#2b2b2b',
+              'arch-earth': '#5d4037',
+              'gold-light': '#FCF6BA',
+              'gold-mid': '#BF953F',
+              'gold-dark': '#AA771C',
+            },
+            fontFamily: {
+              serif: ['Cinzel', 'serif'],
+              sans: ['Lato', 'sans-serif'],
+              hand: ['Caveat', 'cursive'],
+            },
+            backgroundImage: {
+              'dust-pattern': "url('https://www.transparenttextures.com/patterns/dust.png')",
+              'grid-pattern': "radial-gradient(#d6d1c2 1px, transparent 1px)",
+              'gold-leaf': "linear-gradient(45deg, #BF953F 0%, #FCF6BA 45%, #B38728 50%, #FBF5B7 55%, #AA771C 100%)",
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #f5f2eb;
+        background-image: url('https://www.transparenttextures.com/patterns/natural-paper.png');
+      }
+      .arch-glass {
+        background: rgba(253, 251, 247, 0.8);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(166, 124, 82, 0.2);
+      }
+      
+      /* Altın Varaklı Çerçeve Efekti */
+      .gold-leaf-border {
+        background: linear-gradient(45deg, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);
+        padding: 6px;
+        box-shadow: 
+          0 4px 15px rgba(0,0,0,0.3),
+          inset 0 0 10px rgba(0,0,0,0.2);
+        position: relative;
+        border: 1px solid #8a6d3b;
+      }
+      
+      .gold-leaf-border::after {
+        content: '';
+        position: absolute;
+        top: 2px; left: 2px; right: 2px; bottom: 2px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        pointer-events: none;
+      }
+
+      /* Ornate corners for the ID card photo */
+      .ornate-corner {
+        position: absolute;
+        width: 15px;
+        height: 15px;
+        border: 2px solid #8a6d3b;
+        z-index: 10;
+      }
+      .corner-tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+      .corner-tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; }
+      .corner-bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; }
+      .corner-br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+
+      /* Custom scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #e6dec8; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #a67c52; 
+        border-radius: 4px;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

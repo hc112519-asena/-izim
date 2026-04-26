@@ -1,0 +1,7 @@
+{
+  "name": " Hatice Ceylan Kazı & Çizim Atölyesi",
+  "description": "An archaeological drawing and 3D conversion platform featuring map drawing, excavation planning, artifact illustration, and AI-powered image editing.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
