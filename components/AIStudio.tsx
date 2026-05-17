@@ -2,8 +2,12 @@ import React, { useState } from 'react';
 import { AIJobType } from '../types';
 import { generateImageFromText, editImageWithPrompt, translateDescription } from '../services/geminiService';
 
-const AIStudio: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<AIJobType>(AIJobType.IMAGE_EDITING);
+interface AIStudioProps {
+  initialTab?: AIJobType;
+}
+
+const AIStudio: React.FC<AIStudioProps> = ({ initialTab = AIJobType.IMAGE_EDITING }) => {
+  const [activeTab, setActiveTab] = useState<AIJobType>(initialTab);
   const [inputText, setInputText] = useState('');
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
@@ -157,15 +161,31 @@ const AIStudio: React.FC = () => {
         )}
 
         {resultImage && (
-          <div className="relative group">
+          <div className="relative group flex flex-col items-center">
             <img src={resultImage} alt="Result" className="max-h-[600px] max-w-full object-contain shadow-2xl rounded border-4 border-white" />
-            <a 
-              href={resultImage} 
-              download="hatice-ceylan-yz-sonuc.png"
-              className="absolute bottom-4 right-4 bg-white text-arch-dark px-4 py-2 rounded shadow font-bold hover:bg-arch-sand opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              İndir
-            </a>
+            <div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+              <a 
+                href={resultImage} 
+                download="hatice-ceylan-yz-sonuc.png"
+                className="bg-white text-arch-dark px-4 py-2 rounded shadow font-bold hover:bg-arch-sand"
+              >
+                İndir
+              </a>
+              <button
+                onClick={() => {
+                  const event = new CustomEvent('OPEN_ASSISTANT_WITH_CONTEXT', { 
+                    detail: { 
+                      image: resultImage, 
+                      message: "Bu yapay zeka tarafından oluşturulan/düzenlenen görseli arkeolojik açıdan analiz eder misin? Hatalar veya dikkat edilmesi gereken noktalar nelerdir?" 
+                    } 
+                  });
+                  window.dispatchEvent(event);
+                }}
+                className="bg-arch-clay text-white px-4 py-2 rounded shadow font-bold hover:bg-arch-dark"
+              >
+                Asistana Analiz Ettir
+              </button>
+            </div>
           </div>
         )}
 

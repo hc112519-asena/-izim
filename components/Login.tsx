@@ -28,8 +28,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const handlePasscodeLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Default passcode is 1125 (from email) or 2024
-    if (passcode === '1125' || passcode === '2024' || passcode === '1923') {
+    // Authorized access passcode
+    if (passcode === '381881') {
       onLogin();
     } else {
       setError("Geçersiz giriş kodu. Lütfen tekrar deneyin.");

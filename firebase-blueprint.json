@@ -30,11 +30,15 @@
         "description": { "type": "string", "description": "Detailed description" },
         "imageUrl": { "type": "string", "description": "URL to artifact image" },
         "location": { "type": "string", "description": "Discovery location" },
-        "period": { "type": "string", "description": "Historical period" },
+        "period": { 
+          "type": "string", 
+          "enum": ["Paleolitik", "Neolitik", "Kalkolitik", "Tunç Çağı", "Demir Çağı", "Hellenistik", "Roma Dönemi", "Bizans Dönemi", "İslami Dönem", "Modern/Yakın Dönem"],
+          "description": "Historical period" 
+        },
         "createdBy": { "type": "string", "description": "UID of the user who recorded it" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["title", "inventoryNo", "createdBy"]
+      "required": ["title", "inventoryNo", "createdBy", "period"]
     },
     "MapDrawing": {
       "title": "Map Drawing",
@@ -62,6 +66,10 @@
     "/maps/{mapId}": {
       "schema": "MapDrawing",
       "description": "Collection of cartographic drawings."
+    },
+    "/plans/{planId}": {
+      "schema": "MapDrawing",
+      "description": "Collection of excavation plans."
     }
   }
 }

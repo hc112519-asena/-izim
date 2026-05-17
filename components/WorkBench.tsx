@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { DrawingTool, AppMode, ArchaeologicalPeriod, ToolType } from '../types';
+import { auth, db, doc, setDoc, Timestamp, handleFirestoreError, OperationType } from '../firebase';
 
 interface WorkBenchProps {
   mode: AppMode;
@@ -20,6 +21,8 @@ const WorkBench: React.FC<WorkBenchProps> = ({ mode }) => {
   const [activeTool, setActiveTool] = useState<ToolType>(ToolType.PEN);
   const [startPos, setStartPos] = useState<{ x: number, y: number } | null>(null);
   const [snapshot, setSnapshot] = useState<ImageData | null>(null);
+  const [artifactTitle, setArtifactTitle] = useState('İsimsiz Buluntu');
+  const [isSaving, setIsSaving] = useState(false);
 
   const [isToolsOpen, setIsToolsOpen] = useState(window.innerWidth > 768);
 
@@ -223,6 +226,48 @@ const WorkBench: React.FC<WorkBenchProps> = ({ mode }) => {
     }
   };
 
+  const saveToArchive = async () => {
+    if (!canvasRef.current || !auth.currentUser) {
+      alert("Lütfen önce giriş yapın.");
+      return;
+    }
+    
+    setIsSaving(true);
+    let collectionName = '';
+    try {
+      const dataUrl = canvasRef.current.toDataURL();
+      const docId = `HC-${Date.now()}`;
+      
+      if (mode === AppMode.ARTIFACT_ILLUSTRATION) {
+        collectionName = 'artifacts';
+        await setDoc(doc(db, collectionName, docId), {
+          id: docId,
+          title: artifactTitle,
+          inventoryNo: `ARC-${Date.now().toString().slice(-6)}`,
+          period: selectedPeriod,
+          imageUrl: dataUrl,
+          createdBy: auth.currentUser.uid,
+          createdAt: Timestamp.now()
+        });
+      } else {
+        collectionName = mode === AppMode.MAP_DRAWING ? 'maps' : 'plans';
+        await setDoc(doc(db, collectionName, docId), {
+          id: docId,
+          title: artifactTitle || (mode === AppMode.MAP_DRAWING ? 'Kartografik Çizim' : 'Kazı Planı'),
+          data: dataUrl,
+          createdBy: auth.currentUser.uid,
+          createdAt: Timestamp.now()
+        });
+      }
+      
+      alert('Çizim başarıyla dijital arşive kaydedildi.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, collectionName || 'archive');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-arch-paper relative shadow-inner overflow-hidden">
       {/* Drafting Table Tools Toggle (Mobile) */}
@@ -265,18 +310,29 @@ const WorkBench: React.FC<WorkBenchProps> = ({ mode }) => {
         
         {/* Period Selector (Only for Artifact Illustration) */}
         {mode === AppMode.ARTIFACT_ILLUSTRATION && (
-          <div className="space-y-1 mb-2">
-            <label className="text-[8px] font-bold text-gray-400 uppercase">Buluntu Dönemi</label>
-            <select 
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value as ArchaeologicalPeriod)}
-              className="w-full text-[10px] p-1 border border-arch-sand bg-arch-paper outline-none font-serif font-bold text-arch-dark focus:border-arch-clay"
-            >
-              {Object.values(ArchaeologicalPeriod).map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
+          <>
+            <div className="space-y-1 mb-2">
+              <label className="text-[8px] font-bold text-gray-400 uppercase">Buluntu Başlığı</label>
+              <input 
+                type="text"
+                value={artifactTitle}
+                onChange={(e) => setArtifactTitle(e.target.value)}
+                className="w-full text-[10px] p-1 border border-arch-sand bg-arch-paper outline-none font-serif font-bold text-arch-dark focus:border-arch-clay"
+              />
+            </div>
+            <div className="space-y-1 mb-2">
+              <label className="text-[8px] font-bold text-gray-400 uppercase">Buluntu Dönemi</label>
+              <select 
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value as ArchaeologicalPeriod)}
+                className="w-full text-[10px] p-1 border border-arch-sand bg-arch-paper outline-none font-serif font-bold text-arch-dark focus:border-arch-clay"
+              >
+                {Object.values(ArchaeologicalPeriod).map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          </>
         )}
 
         {/* Layer Selector (Only for Excavation Planning) */}
@@ -367,12 +423,29 @@ const WorkBench: React.FC<WorkBenchProps> = ({ mode }) => {
               Sil
             </button>
             <button 
-              onClick={downloadDrawing}
-              className="p-2 bg-arch-dark text-white text-[9px] font-bold uppercase hover:bg-black transition-all shadow-md"
+              onClick={saveToArchive}
+              disabled={isSaving}
+              className={`p-2 bg-arch-dark text-white text-[9px] font-bold uppercase transition-all shadow-md ${isSaving ? 'opacity-50' : 'hover:bg-black'}`}
             >
-              Arşivle
+              {isSaving ? 'Kaydediliyor...' : 'Arşivle'}
             </button>
           </div>
+          
+          <button 
+            onClick={() => {
+              const img = canvasRef.current?.toDataURL();
+              const event = new CustomEvent('OPEN_ASSISTANT_WITH_CONTEXT', { 
+                detail: { 
+                  image: img, 
+                  message: `Bu ${mode === AppMode.ARTIFACT_ILLUSTRATION ? 'buluntu çizimini' : mode === AppMode.MAP_DRAWING ? 'haritayı' : 'kazı planını'} analiz edebilir misin?` 
+                } 
+              });
+              window.dispatchEvent(event);
+            }}
+            className="w-full mt-2 p-3 bg-white border-2 border-arch-clay text-arch-clay text-[10px] font-black uppercase tracking-widest hover:bg-arch-clay hover:text-white transition-all shadow-lg flex items-center justify-center gap-2"
+          >
+            <span>🏺</span> ASİSTANA SOR
+          </button>
         </div>
       </div>
 

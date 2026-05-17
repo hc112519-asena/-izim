@@ -56,13 +56,31 @@ const Translator: React.FC = () => {
 
       </div>
       
-      <button 
-        onClick={handleTranslate}
-        disabled={loading}
-        className="mt-8 px-8 py-3 bg-arch-clay text-white font-serif font-bold text-xl rounded shadow-lg hover:bg-arch-dark transition-colors disabled:opacity-50"
-      >
-        Şimdi Çevir
-      </button>
+      <div className="mt-8 flex gap-4">
+        <button 
+          onClick={handleTranslate}
+          disabled={loading}
+          className="px-8 py-3 bg-arch-clay text-white font-serif font-bold text-xl rounded shadow-lg hover:bg-arch-dark transition-colors disabled:opacity-50"
+        >
+          Şimdi Çevir
+        </button>
+
+        {output && (
+          <button 
+            onClick={() => {
+              const event = new CustomEvent('OPEN_ASSISTANT_WITH_CONTEXT', { 
+                detail: { 
+                  message: `Aşağıdaki metin ve çevirisi hakkında arkeolojik bir tartışma yapmak istiyorum:\n\nOrijinal: ${input}\n\nÇeviri: ${output}` 
+                } 
+              });
+              window.dispatchEvent(event);
+            }}
+            className="px-8 py-3 bg-white border-2 border-arch-clay text-arch-clay font-serif font-bold text-xl rounded shadow-lg hover:bg-arch-sand transition-colors"
+          >
+            Asistanla Tartış
+          </button>
+        )}
+      </div>
     </div>
   );
 };

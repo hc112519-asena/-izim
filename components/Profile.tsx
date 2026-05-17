@@ -2,16 +2,40 @@ import React, { useState, useEffect, useRef } from 'react';
 import { auth, db, doc, getDoc, setDoc, Timestamp } from '../firebase';
 
 const Profile: React.FC = () => {
+  const defaultUser = {
+    displayName: 'HATİCE CEYLAN',
+    role: 'admin',
+    uid: 'HC-2024-ADMIN',
+    specialization: 'Arkeolojik Çizim ve 3D Modelleme',
+    education: 'Arkeoloji ve Sanat Tarihi',
+    institution: 'Hatice Ceylan Atölyesi',
+    experience: '15+ Yıl',
+    bio: 'Geçmişin izlerini, geleceğin teknolojisiyle buluşturarak her bir fırça darbesinde tarihi yeniden canlandırıyoruz.',
+    photoURL: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=400&auto=format&fit=crop',
+    createdAt: { toDate: () => new Date() }
+  };
+
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<any>({});
+  const [editForm, setEditForm] = useState<any>(defaultUser);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
+      // Check localStorage first
+      const localData = localStorage.getItem('arch_profile_data');
+      if (localData) {
+        try {
+          const parsed = JSON.parse(localData);
+          setProfileData(parsed);
+          setEditForm(parsed);
+        } catch (e) {
+          console.error("Local storage parse error", e);
+        }
+      }
+
       if (!auth.currentUser) {
-        // If no user, we might be in passcode mode
         setLoading(false);
         return;
       }
@@ -19,8 +43,12 @@ const Profile: React.FC = () => {
         const userRef = doc(db, 'users', auth.currentUser.uid);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
-          setProfileData(userSnap.data());
-          setEditForm(userSnap.data());
+          const cloudData = userSnap.data();
+          // Merge with default user to ensure all fields exist
+          const merged = { ...defaultUser, ...cloudData };
+          setProfileData(merged);
+          setEditForm(merged);
+          localStorage.setItem('arch_profile_data', JSON.stringify(merged));
         }
       } catch (error) {
         console.error("Error fetching profile:", error);
@@ -33,11 +61,10 @@ const Profile: React.FC = () => {
   }, []);
 
   const handleImageClick = () => {
-    if (!auth.currentUser) {
-      alert("Giriş kodu ile oturum açtığınızda profil fotoğrafı değiştirilemez. Lütfen Google ile giriş yapın.");
-      return;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''; // Reset value to allow re-upload of same file
+      fileInputRef.current.click();
     }
-    fileInputRef.current?.click();
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,34 +77,46 @@ const Profile: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64String = reader.result as string;
+        
+        // Use a base of current profile data or default user
+        const baseData = profileData || defaultUser;
+        const newData = { ...baseData, photoURL: base64String };
+        
+        setProfileData(newData);
+        setEditForm((prev: any) => ({ ...prev, photoURL: base64String }));
+        localStorage.setItem('arch_profile_data', JSON.stringify(newData));
+        window.dispatchEvent(new CustomEvent('PROFILE_UPDATED'));
+
         if (auth.currentUser) {
           try {
             const userRef = doc(db, 'users', auth.currentUser.uid);
             await setDoc(userRef, { photoURL: base64String }, { merge: true });
-            setProfileData((prev: any) => ({ ...prev, photoURL: base64String }));
           } catch (error) {
             console.error("Error updating photo:", error);
           }
         }
+      };
+      reader.onerror = () => {
+        alert("Dosya okunurken bir hata oluştu.");
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleSave = async () => {
-    if (!auth.currentUser) {
-      setProfileData(editForm);
-      setIsEditing(false);
-      return;
-    }
-    try {
-      const userRef = doc(db, 'users', auth.currentUser.uid);
-      await setDoc(userRef, editForm, { merge: true });
-      setProfileData(editForm);
-      setIsEditing(false);
-    } catch (error) {
-      console.error("Error saving profile:", error);
-      alert("Profil kaydedilirken bir hata oluştu.");
+    // Always save to localStorage
+    localStorage.setItem('arch_profile_data', JSON.stringify(editForm));
+    setProfileData(editForm);
+    setIsEditing(false);
+
+    if (auth.currentUser) {
+      try {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        await setDoc(userRef, editForm, { merge: true });
+      } catch (error) {
+        console.error("Error saving profile:", error);
+        alert("Profil buluta kaydedilirken bir hata oluştu, ancak yerel olarak saklandı.");
+      }
     }
   };
 
@@ -88,18 +127,6 @@ const Profile: React.FC = () => {
       </div>
     );
   }
-
-  const defaultUser = {
-    displayName: 'HATİCE CEYLAN',
-    role: 'admin',
-    uid: 'HC-2024-ADMIN',
-    specialization: 'Arkeolojik Çizim ve 3D Modelleme',
-    education: 'Arkeoloji ve Sanat Tarihi',
-    institution: 'Hatice Ceylan Atölyesi',
-    experience: '15+ Yıl',
-    bio: 'Geçmişin izlerini, geleceğin teknolojisiyle buluşturarak her bir fırça darbesinde tarihi yeniden canlandırıyoruz.',
-    createdAt: { toDate: () => new Date() }
-  };
 
   const user = profileData || defaultUser;
 
@@ -114,15 +141,16 @@ const Profile: React.FC = () => {
           <div className="gold-leaf-border mb-4">
             <div 
               onClick={handleImageClick}
-              className="w-32 h-40 md:w-40 md:h-48 bg-stone-300 shadow-inner relative overflow-hidden grayscale hover:grayscale-0 transition-all cursor-pointer group"
+              className="w-32 h-40 md:w-40 md:h-48 bg-stone-300 shadow-inner relative overflow-hidden grayscale hover:grayscale-0 transition-all cursor-pointer group border-2 border-arch-clay/20"
             >
               <img 
                 src={user.photoURL || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=400&auto=format&fit=crop'} 
                 alt="Profil" 
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                <span className="text-white text-[10px] font-bold uppercase tracking-widest px-2 text-center">Değiştir</span>
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity">
+                <span className="text-white text-xl mb-1">📷</span>
+                <span className="text-white text-[10px] font-bold uppercase tracking-widest px-2 text-center">Resmi Değiştir</span>
               </div>
               
               {/* Ornate corner accents */}
@@ -132,6 +160,13 @@ const Profile: React.FC = () => {
               <div className="ornate-corner corner-br"></div>
             </div>
           </div>
+
+          <button 
+            onClick={handleImageClick}
+            className="mb-4 text-[9px] font-bold text-arch-clay uppercase tracking-widest bg-white/50 px-3 py-1 rounded-full border border-arch-sand hover:bg-white transition-colors"
+          >
+            FOTOĞRAF YÜKLE
+          </button>
 
           <input 
             type="file" 

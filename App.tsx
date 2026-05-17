@@ -1,9 +1,10 @@
 import React, { useState, useEffect, Component, ReactNode } from 'react';
-import { AppMode } from './types';
+import { AppMode, AIJobType } from './types';
 import WorkBench from './components/WorkBench';
 import AIStudio from './components/AIStudio';
 import Translator from './components/Translator';
 import VoiceControl from './components/VoiceControl';
+import ChatAssistant from './components/ChatAssistant';
 import Profile from './components/Profile';
 import Login from './components/Login';
 import { auth, onAuthStateChanged, db, doc, getDoc, setDoc, Timestamp } from './firebase';
@@ -61,6 +62,7 @@ interface LogEntry {
 
 const App: React.FC = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>(AppMode.DASHBOARD);
+  const [aiTab, setAiTab] = useState<AIJobType>(AIJobType.IMAGE_EDITING);
   const [isSidebarOpen, setSidebarOpen] = useState(window.innerWidth > 1024);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([
@@ -78,10 +80,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      // Check local storage first for avatar
+      const localData = localStorage.getItem('arch_profile_data');
+      if (localData) {
+        const parsed = JSON.parse(localData);
+        if (parsed.photoURL) setHeaderAvatar(parsed.photoURL);
+      }
+
       if (user) {
         setIsLoggedIn(true);
         setIsPasscodeLogin(false);
-        setHeaderAvatar(user.photoURL);
+        if (!headerAvatar) setHeaderAvatar(user.photoURL);
         
         // Sync user to Firestore
         try {
@@ -97,6 +106,12 @@ const App: React.FC = () => {
               role: 'archaeologist',
               createdAt: Timestamp.now()
             });
+          } else {
+            const cloudData = userSnap.data();
+            if (cloudData.photoURL) {
+              setHeaderAvatar(cloudData.photoURL);
+              localStorage.setItem('arch_profile_data', JSON.stringify(cloudData));
+            }
           }
         } catch (error) {
           console.error("Error syncing user profile:", error);
@@ -108,7 +123,19 @@ const App: React.FC = () => {
       setIsAuthReady(true);
     });
 
-    return () => unsubscribe();
+    const handleProfileUpdate = () => {
+      const localData = localStorage.getItem('arch_profile_data');
+      if (localData) {
+        const parsed = JSON.parse(localData);
+        if (parsed.photoURL) setHeaderAvatar(parsed.photoURL);
+      }
+    };
+    window.addEventListener('PROFILE_UPDATED', handleProfileUpdate);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('PROFILE_UPDATED', handleProfileUpdate);
+    };
   }, [isPasscodeLogin]);
 
   const handlePasscodeLogin = () => {
@@ -356,7 +383,10 @@ const App: React.FC = () => {
 
                           {/* Quick Text to Image Button */}
                           <button 
-                            onClick={() => setCurrentMode(AppMode.AI_STUDIO)}
+                            onClick={() => {
+                              setAiTab(AIJobType.TEXT_TO_IMAGE);
+                              setCurrentMode(AppMode.AI_STUDIO);
+                            }}
                             className="w-full flex items-center justify-between p-4 bg-arch-dark text-white rounded hover:bg-black transition-all group shadow-md border border-arch-clay/30"
                           >
                             <div className="text-left">
@@ -447,7 +477,7 @@ const App: React.FC = () => {
 
            {currentMode === AppMode.AI_STUDIO && (
               <div className="h-full w-full bg-arch-dark/5 p-2 rounded-sm border border-arch-sand overflow-hidden">
-                <AIStudio />
+                <AIStudio initialTab={aiTab} key={aiTab} />
               </div>
            )}
            
@@ -458,6 +488,9 @@ const App: React.FC = () => {
 
         {/* Voice Assistant - Discreet Radio Style */}
         <VoiceControl onNavigate={setCurrentMode} />
+        
+        {/* Persistent Chat Assistant Widget */}
+        <ChatAssistant currentMode={currentMode} />
 
       </main>
     </div>

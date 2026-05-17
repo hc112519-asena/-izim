@@ -119,6 +119,45 @@ export const analyzeVoiceCommand = async (transcript: string): Promise<{ action:
   }
 };
 
+// Chat with Assistant
+export const chatWithAssistant = async (message: string, base64Image?: string, currentMode?: string): Promise<string> => {
+  try {
+    const ai = getAIClient();
+    const parts: any[] = [{ text: message }];
+
+    if (base64Image) {
+      parts.push({
+        inlineData: {
+          mimeType: 'image/png',
+          data: cleanBase64(base64Image)
+        }
+      });
+    }
+
+    const systemPrompt = `You are "Hatice Ceylan's Archaeological Assistant". 
+    You are an expert in archaeology, find identification, site mapping, excavation planning, and technical illustration.
+    Help the user with their queries about artifacts, historical periods, drawing techniques, or site analysis.
+    
+    Current Application Context: ${currentMode || 'General Dashboard'}
+    
+    Keep the tone professional, scholarly, yet supportive. 
+    If an image is provided, analyze it as an archaeological finding or map and provide insights.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        { role: 'user', parts: [{ text: systemPrompt }] },
+        { role: 'user', parts: parts }
+      ]
+    });
+
+    return response.text || "Üzgünüm, şu an yanıt veremiyorum.";
+  } catch (error) {
+    console.error("Chat Assistant Error:", error);
+    throw error;
+  }
+};
+
 // Text to Speech
 export const generateSpeech = async (text: string): Promise<string> => {
   try {

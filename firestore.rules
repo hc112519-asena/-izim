@@ -97,6 +97,7 @@ service cloud.firestore {
              data.inventoryNo is string && data.inventoryNo.size() > 0 && data.inventoryNo.size() < 50 &&
              (data.description == null || (data.description is string && data.description.size() < 2000)) &&
              (data.imageUrl == null || isValidUrl(data.imageUrl)) &&
+             data.period in ["Paleolitik", "Neolitik", "Kalkolitik", "Tunç Çağı", "Demir Çağı", "Hellenistik", "Roma Dönemi", "Bizans Dönemi", "İslami Dönem", "Modern/Yakın Dönem"] &&
              data.createdBy == request.auth.uid &&
              data.createdAt is timestamp;
     }
@@ -129,6 +130,13 @@ service cloud.firestore {
     }
 
     match /maps/{mapId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidMap(request.resource.data);
+      allow update: if isAuthenticated() && (isOwner(resource.data.createdBy) || isAdmin()) && isValidMap(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.createdBy) || isAdmin());
+    }
+
+    match /plans/{planId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidMap(request.resource.data);
       allow update: if isAuthenticated() && (isOwner(resource.data.createdBy) || isAdmin()) && isValidMap(request.resource.data);
