@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { decipherInscription, InscriptionAnalysis } from '../services/geminiService';
+import { generatePdfReport } from '../services/pdfService';
 import { 
   Upload, Sparkles, BookOpen, Clock, Trash2, 
   Download, FileText, Languages, ChevronRight, HelpCircle 
@@ -509,13 +510,27 @@ Hatice Ceylan Atölyesi YZ Epigrafi Analizörü.`;
                           const mockSaved: SavedInscription = {
                             id: `INS-ACTIVE`,
                             timestamp: new Date().toLocaleDateString('tr-TR'),
+                            analysis: analysisResult,
+                            image: selectedImage || undefined
+                          };
+                          generatePdfReport(mockSaved);
+                        }}
+                        className="px-4 py-2 bg-[#8c2d19] text-white font-bold text-[11px] uppercase rounded hover:bg-[#6c1d0e] transition-colors flex items-center gap-1.5 shadow"
+                      >
+                        <Download className="w-3.5 h-3.5" /> PDF RAPORU İNDİR
+                      </button>
+                      <button
+                        onClick={() => {
+                          const mockSaved: SavedInscription = {
+                            id: `INS-ACTIVE`,
+                            timestamp: new Date().toLocaleDateString('tr-TR'),
                             analysis: analysisResult
                           };
                           downloadReport(mockSaved);
                         }}
-                        className="px-3 py-2 bg-white border border-arch-sand text-arch-clay font-bold text-[10px] uppercase rounded hover:bg-stone-50 transition-colors flex items-center gap-1"
+                        className="px-3 py-2 bg-[#fdfaf5] border border-arch-sand text-stone-600 font-bold text-[10px] uppercase rounded hover:bg-stone-50 transition-colors flex items-center gap-1"
                       >
-                        <Download className="w-3.5 h-3.5" /> RAPOR İNDİR
+                        <FileText className="w-3.5 h-3.5" /> TXT OLARAK İNDİR
                       </button>
                     </div>
                   </div>
@@ -602,15 +617,22 @@ Hatice Ceylan Atölyesi YZ Epigrafi Analizörü.`;
                     </div>
                     <div className="flex gap-1.5">
                       <button
+                        onClick={() => generatePdfReport(viewingSavedItem)}
+                        className="p-1 px-2.5 bg-[#8c2d19] hover:bg-[#6c1d0e] text-white text-[9px] font-bold uppercase rounded flex items-center gap-1 shadow transition-all"
+                        title="Profesyonel PDF Raporu İndir"
+                      >
+                        <Download className="w-3 h-3" /> PDF Raporu
+                      </button>
+                      <button
                         onClick={() => downloadReport(viewingSavedItem)}
                         className="p-1 px-2.5 bg-gray-100 hover:bg-arch-sand text-arch-dark text-[9px] font-bold uppercase rounded border flex items-center gap-1 transition-all"
-                        title="Bilgisayara Rapor İndir"
+                        title="Ham TXT Raporu İndir"
                       >
-                        <Download className="w-3 h-3" /> İndir
+                        <FileText className="w-3 h-3" /> TXT
                       </button>
                       <button
                         onClick={() => handleDiscussWithAssistant(viewingSavedItem.analysis)}
-                        className="p-1 px-2.5 bg-arch-clay hover:bg-arch-dark text-white text-[9px] font-bold uppercase rounded flex items-center gap-1 shadow transition-all"
+                        className="p-1 px-2.5 bg-white border border-arch-sand text-arch-clay text-[9px] font-bold uppercase rounded flex items-center gap-1 transition-all"
                       >
                         🏺 Tartış
                       </button>

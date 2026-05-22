@@ -471,6 +471,12 @@ const WorkBench: React.FC<WorkBenchProps> = ({ mode }) => {
               onTouchEnd={stopDrawing}
             />
             
+            {/* Hatice Ceylan Atelier Watermark */}
+            <div className="absolute bottom-4 left-4 opacity-40 select-none pointer-events-none text-left z-10">
+               <div className="text-[10px] font-bold text-arch-clay/60 uppercase tracking-[0.25em] font-serif">HATİCE CEYLAN ATÖLYESİ</div>
+               <div className="text-[8px] font-serif text-arch-dark/40 tracking-wider">Mülkiyet & Lisans Sahibi • Sınırlı Saha Lisansı • © 2026</div>
+            </div>
+            
             {/* North Arrow Decorative */}
             <div 
               className="absolute top-6 right-6 opacity-40 select-none pointer-events-none flex flex-col items-center transition-transform duration-300"

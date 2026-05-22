@@ -143,6 +143,16 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (isOwner(resource.data.createdBy) || isAdmin());
     }
 
+    match /whitelist/{email} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /usage_logs/{logId} {
+      allow read: if isAuthenticated() && (logId.startsWith(request.auth.uid) || isAdmin());
+      allow create, update: if isAuthenticated() && logId.startsWith(request.auth.uid);
+    }
+
     match /{path=**} {
       allow read, write: if false;
     }

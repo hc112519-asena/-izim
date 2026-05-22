@@ -70,6 +70,33 @@
     "/plans/{planId}": {
       "schema": "MapDrawing",
       "description": "Collection of excavation plans."
+    },
+    "/whitelist/{email}": {
+      "schema": {
+        "title": "WhitelistEntry",
+        "type": "object",
+        "properties": {
+          "email": { "type": "string" },
+          "authorizedBy": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["email"]
+      },
+      "description": "Whitelisted emails for unlimited access."
+    },
+    "/usage_logs/{logId}": {
+      "schema": {
+        "title": "UsageLog",
+        "type": "object",
+        "properties": {
+          "uid": { "type": "string" },
+          "date": { "type": "string" },
+          "minutesUsed": { "type": "number" },
+          "lastActiveAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["uid", "date", "minutesUsed", "lastActiveAt"]
+      },
+      "description": "Daily usage tracking for non-whitelisted users."
     }
   }
 }

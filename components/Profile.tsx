@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { auth, db, doc, getDoc, setDoc, Timestamp } from '../firebase';
+import { auth, db, doc, getDoc, setDoc, Timestamp, collection, onSnapshot } from '../firebase';
+import { deleteDoc } from 'firebase/firestore';
 
 const Profile: React.FC = () => {
   const defaultUser = {
@@ -20,6 +21,71 @@ const Profile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>(defaultUser);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Whitelist management states
+  const [whitelistEmails, setWhitelistEmails] = useState<any[]>([]);
+  const [newEmail, setNewEmail] = useState('');
+  const [addingEmail, setAddingEmail] = useState(false);
+  
+  const user = profileData || defaultUser;
+  const isAdminUser = user.role === 'admin' || auth.currentUser?.email?.toLowerCase() === 'hc112519@gmail.com';
+
+  useEffect(() => {
+    if (!isAdminUser) return;
+    
+    // Subscribe to whitelist collection real-time
+    const unsubscribe = onSnapshot(collection(db, 'whitelist'), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docRef) => {
+        list.push({ id: docRef.id, ...docRef.data() });
+      });
+      setWhitelistEmails(list);
+    }, (error) => {
+      console.error("Error reading whitelist collection:", error);
+    });
+
+    return () => unsubscribe();
+  }, [isAdminUser, user.role]);
+
+  const handleAddWhitelist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const emailToAuth = newEmail.trim().toLowerCase();
+    if (!emailToAuth) return;
+    
+    // Simple regex check
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(emailToAuth)) {
+      alert("Lütfen geçerli bir e-posta adresi yazın.");
+      return;
+    }
+
+    setAddingEmail(true);
+    try {
+      await setDoc(doc(db, 'whitelist', emailToAuth), {
+        email: emailToAuth,
+        authorizedBy: auth.currentUser?.email || 'Hatice Ceylan',
+        createdAt: Timestamp.now()
+      });
+      setNewEmail('');
+    } catch (error) {
+      console.error("Error whitelisting user:", error);
+      alert("Yetkilendirme sırasında bir hata oldu: " + (error instanceof Error ? error.message : "Bilinmeyen Hata"));
+    } finally {
+      setAddingEmail(false);
+    }
+  };
+
+  const handleRemoveWhitelist = async (emailId: string) => {
+    if (!window.confirm(`${emailId} adresinin sınırsız erişim yetkisini iptal etmek istediğinize emin misiniz?`)) {
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'whitelist', emailId));
+    } catch (error) {
+      console.error("Error removing whitelisted user:", error);
+      alert("Yetki iptali sırasında hata oluştu.");
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -127,8 +193,6 @@ const Profile: React.FC = () => {
       </div>
     );
   }
-
-  const user = profileData || defaultUser;
 
   return (
     <div className="flex flex-col h-full bg-arch-paper overflow-y-auto p-8 space-y-8">
@@ -306,6 +370,98 @@ const Profile: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Whitelist Authorization Panel for Admins */}
+      {isAdminUser && (
+        <div className="max-w-4xl mx-auto w-full bg-white border-2 border-arch-clay shadow-xl p-6 md:p-8 rounded-lg relative overflow-hidden font-serif">
+          {/* Decorative brass-themed header */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b-2 border-arch-sand pb-4 mb-6 gap-4">
+             <div>
+                <h3 className="text-xl md:text-2xl font-bold text-arch-dark tracking-tight uppercase flex items-center gap-2">
+                   <span>📜</span> Atölye Yetkilendirme Paneli
+                </h3>
+                <p className="text-[10px] md:text-xs text-stone-500 uppercase tracking-widest mt-0.5 font-sans">Saha Terminali Erişim Lisans Kontrolü</p>
+             </div>
+             <div className="bg-amber-50 border border-amber-200 py-1 px-3 rounded-full flex items-center gap-1.5 shadow-inner">
+                <span className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse"></span>
+                <span className="text-[9px] font-bold text-amber-800 uppercase tracking-widest font-sans">Yönetici Modu</span>
+             </div>
+          </div>
+
+          <p className="text-xs text-stone-600 leading-relaxed mb-6 font-sans">
+             Kazı Atölyesi'ne sınırsız ücretsiz erişim sağlamak istediğiniz çalışma arkadaşlarınızın e-posta adreslerini aşağıya ekleyin. Bu listede yer almayan misafir kullanıcılar günlük en fazla <strong>30 dakika</strong> çalışma hakkına sahip olacak ve limit dolduğunda premium lisansa yönlendirilecektir.
+          </p>
+
+          <form onSubmit={handleAddWhitelist} className="flex flex-col sm:flex-row gap-3 mb-6 font-sans">
+             <input
+                type="email"
+                placeholder="Örn: meslektas@kurum.edu.tr"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                disabled={addingEmail}
+                className="flex-1 bg-stone-50 border-2 border-arch-sand focus:border-arch-clay hover:border-stone-400 outline-none p-3 text-sm rounded shadow-inner transition-colors"
+                required
+             />
+             <button
+                type="submit"
+                disabled={addingEmail}
+                className="bg-arch-clay hover:bg-arch-dark text-white font-bold text-xs uppercase tracking-widest py-3 px-6 rounded shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                {addingEmail ? (
+                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                   <span>➕ ERİŞİM YETKİSİ VER</span>
+                )}
+             </button>
+          </form>
+
+          {/* Whitelisted emails table */}
+          <div>
+             <h4 className="text-xs font-serif font-black text-arch-dark uppercase tracking-widest mb-3 pb-1 border-b border-arch-sand">
+                Aktif Yetkilendirilmiş Araştırmacılar ({whitelistEmails.length})
+             </h4>
+
+             {whitelistEmails.length === 0 ? (
+                <div className="text-center py-8 bg-stone-50 border border-dashed border-stone-350 rounded font-sans text-xs text-stone-500">
+                   Sizin dışınızda henüz hiçbir araştırmacı yetkilendirilmemiş. Atölye şu an genel kullanıma 30 dk limitli, size özel ise sınırsızdır.
+                </div>
+             ) : (
+                <div className="overflow-x-auto rounded border border-arch-sand shadow-sm bg-stone-50/50">
+                   <table className="w-full text-left font-sans text-xs border-collapse">
+                      <thead>
+                         <tr className="bg-arch-sand/30 border-b border-arch-sand text-[10px] text-stone-500 uppercase tracking-wider font-bold">
+                            <th className="p-3">Araştırmacı E-postası</th>
+                            <th className="p-3">Yetkilendiren</th>
+                            <th className="p-3">Eklenme Tarihi</th>
+                            <th className="p-3 text-right">Erişim Yönetimi</th>
+                         </tr>
+                      </thead>
+                      <tbody>
+                         {whitelistEmails.map((entry) => (
+                            <tr key={entry.id} className="border-b border-arch-sand/50 hover:bg-white transition-colors">
+                               <td className="p-3 font-mono font-bold text-arch-dark">{entry.email}</td>
+                               <td className="p-3 text-stone-500">{entry.authorizedBy || 'Admin'}</td>
+                               <td className="p-3 text-stone-400">
+                                  {entry.createdAt?.toDate ? entry.createdAt.toDate().toLocaleDateString() : '---'}
+                               </td>
+                               <td className="p-3 text-right">
+                                  <button
+                                     type="button"
+                                     onClick={() => handleRemoveWhitelist(entry.id)}
+                                     className="text-[10px] bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 font-bold uppercase tracking-wider px-2.5 py-1 rounded border border-red-200 transition-colors"
+                                  >
+                                     Erişimi Kaldır 🗑
+                                  </button>
+                               </td>
+                            </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                </div>
+             )}
+          </div>
+        </div>
+      )}
 
       {/* Archive Gallery Preview */}
       <div className="max-w-4xl mx-auto w-full space-y-6 pb-20">

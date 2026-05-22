@@ -74,10 +74,22 @@ const App: React.FC = () => {
   const addLog = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
     setLogs(prev => [{ id: Date.now().toString(), timestamp: new Date(), message, type }, ...prev].slice(0, 5));
   };
+  
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
   const [headerAvatar, setHeaderAvatar] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isPasscodeLogin, setIsPasscodeLogin] = useState(false);
+  
+  // Access limit & monetization states
+  const [isUnlimited, setIsUnlimited] = useState<boolean>(true);
+  const [isCheckingUnlimited, setIsCheckingUnlimited] = useState<boolean>(true);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(30 * 60);
+  const [showLimitLock, setShowLimitLock] = useState<boolean>(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -92,6 +104,28 @@ const App: React.FC = () => {
         setIsLoggedIn(true);
         setIsPasscodeLogin(false);
         if (!headerAvatar) setHeaderAvatar(user.photoURL);
+        
+        // Verify access rights & whitelist state
+        const userEmail = user.email?.toLowerCase();
+        if (userEmail === 'hc112519@gmail.com') {
+          setIsUnlimited(true);
+          setIsCheckingUnlimited(false);
+        } else {
+          try {
+            const whitelistRef = doc(db, 'whitelist', userEmail || '');
+            const whitelistSnap = await getDoc(whitelistRef);
+            if (whitelistSnap.exists()) {
+              setIsUnlimited(true);
+            } else {
+              setIsUnlimited(false);
+            }
+          } catch (e) {
+            console.error("Error checking user whitelist status:", e);
+            // Default to limited on error to act safe
+            setIsUnlimited(false);
+          }
+          setIsCheckingUnlimited(false);
+        }
         
         // Sync user to Firestore
         try {
@@ -120,6 +154,8 @@ const App: React.FC = () => {
       } else if (!isPasscodeLogin) {
         setIsLoggedIn(false);
         setHeaderAvatar(null);
+        setIsUnlimited(true);
+        setIsCheckingUnlimited(false);
       }
       setIsAuthReady(true);
     });
@@ -143,7 +179,117 @@ const App: React.FC = () => {
     setIsLoggedIn(true);
     setIsPasscodeLogin(true);
     setHeaderAvatar(null);
+    setIsUnlimited(true);
+    setIsCheckingUnlimited(false);
   };
+
+  // Load user's logged minutes for the current day
+  useEffect(() => {
+    if (isCheckingUnlimited) return;
+    if (isUnlimited) {
+      setShowLimitLock(false);
+      return;
+    }
+
+    const loadDailyUsage = async () => {
+      const todayDate = new Date().toISOString().split('T')[0];
+      const uid = auth.currentUser?.uid || 'guest';
+      const storageKey = `arch_usage_${uid}_${todayDate}`;
+      
+      const localMin = localStorage.getItem(storageKey);
+      let startMinutes = localMin ? parseFloat(localMin) : 0;
+      
+      let initialSecs = Math.max(0, (30 - startMinutes) * 60);
+      setRemainingSeconds(initialSecs);
+      if (initialSecs <= 0) {
+        setShowLimitLock(true);
+      }
+
+      if (auth.currentUser) {
+        const logId = `${uid}_${todayDate}`;
+        try {
+          const logRef = doc(db, 'usage_logs', logId);
+          const snap = await getDoc(logRef);
+          if (snap.exists()) {
+            const cloudMinutes = snap.data().minutesUsed || 0;
+            const actualMinutes = Math.max(startMinutes, cloudMinutes);
+            localStorage.setItem(storageKey, actualMinutes.toString());
+            const calculatedSecs = Math.max(0, (30 - actualMinutes) * 60);
+            setRemainingSeconds(calculatedSecs);
+            if (calculatedSecs <= 0) {
+              setShowLimitLock(true);
+            }
+          } else {
+            await setDoc(logRef, {
+              uid,
+              date: todayDate,
+              minutesUsed: startMinutes,
+              lastActiveAt: Timestamp.now()
+            });
+          }
+        } catch (e) {
+          console.error("Failed to load daily usage logs:", e);
+        }
+      }
+    };
+
+    loadDailyUsage();
+  }, [isUnlimited, isCheckingUnlimited, isLoggedIn]);
+
+  const syncUsageToFirestore = async (minutes: number) => {
+    if (!auth.currentUser) return;
+    const todayDate = new Date().toISOString().split('T')[0];
+    const logId = `${auth.currentUser.uid}_${todayDate}`;
+    try {
+      await setDoc(doc(db, 'usage_logs', logId), {
+        uid: auth.currentUser.uid,
+        date: todayDate,
+        minutesUsed: parseFloat(minutes.toFixed(2)),
+        lastActiveAt: Timestamp.now()
+      }, { merge: true });
+    } catch (e) {
+      console.error("Failed to sync daily usage logic:", e);
+    }
+  };
+
+  // Timer Tick Mechanism (Updates LocalStorage every second)
+  useEffect(() => {
+    if (isCheckingUnlimited || isUnlimited || !isLoggedIn || showLimitLock) return;
+
+    const timer = setInterval(() => {
+      setRemainingSeconds(prev => {
+        const next = Math.max(0, prev - 1);
+        
+        const todayDate = new Date().toISOString().split('T')[0];
+        const uid = auth.currentUser?.uid || 'guest';
+        const storageKey = `arch_usage_${uid}_${todayDate}`;
+        const minutesUsed = 30 - (next / 60);
+        localStorage.setItem(storageKey, minutesUsed.toString());
+
+        if (next <= 0) {
+          setShowLimitLock(true);
+          clearInterval(timer);
+          syncUsageToFirestore(minutesUsed);
+        }
+
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isCheckingUnlimited, isUnlimited, isLoggedIn, showLimitLock]);
+
+  // Periodic Cloud Sync (Every 30 seconds)
+  useEffect(() => {
+    if (isCheckingUnlimited || isUnlimited || !isLoggedIn || showLimitLock) return;
+
+    const syncInterval = setInterval(() => {
+      const minutesUsed = 30 - (remainingSeconds / 60);
+      syncUsageToFirestore(minutesUsed);
+    }, 30000);
+
+    return () => clearInterval(syncInterval);
+  }, [isCheckingUnlimited, isUnlimited, isLoggedIn, showLimitLock, remainingSeconds]);
 
   const NavButton = ({ mode, label, icon }: { mode: AppMode, label: string, icon: string }) => (
     <button
@@ -307,6 +453,29 @@ const App: React.FC = () => {
                 </div>
                 <span className="text-[8px] font-bold text-arch-clay uppercase">Scale 1:50</span>
              </div>
+
+              {/* Access State & Remaining Time Badge */}
+              {!isCheckingUnlimited && (
+                <div className="flex items-center gap-2 mr-2">
+                  {isUnlimited ? (
+                    <div className="hidden sm:flex items-center gap-2 bg-[#f9f5ea] border border-[#dcb871] px-3 py-1.5 rounded-sm shadow-sm select-none">
+                      <span className="text-amber-600 text-[10px] animate-pulse">👑</span>
+                      <span className="text-[9px] font-serif font-black text-[#8a6a2a] uppercase tracking-widest leading-none">
+                        TAM YETKİLİ LİSANS (SINIRSIZ)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 bg-[#f4f1ea] border border-[#dfdabf] px-3 py-1.5 rounded-sm shadow-inner select-none animate-fade-in">
+                      <span className={`text-[11px] font-serif font-bold ${remainingSeconds < 300 ? 'text-rose-600 animate-pulse' : 'text-[#483d32]'}`}>
+                        ⏳ {formatTime(remainingSeconds)}
+                      </span>
+                      <span className="text-[8px] font-serif hover:text-arch-clay transition-colors text-stone-500 uppercase tracking-widest hidden md:inline border-l border-stone-300 pl-2">
+                        GÜNLÜK SAHA SÜRESİ
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
              <button 
                onClick={() => setCurrentMode(AppMode.PROFILE)}
@@ -498,6 +667,97 @@ const App: React.FC = () => {
         
         {/* Persistent Chat Assistant Widget */}
         <ChatAssistant currentMode={currentMode} />
+
+        {/* Limit Over Lock Screen with authentic visual style */}
+        {showLimitLock && !isUnlimited && (
+          <div className="fixed inset-0 z-[150] bg-[#1d1915]/95 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div className="absolute inset-0 opacity-15 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')]"></div>
+            
+            <div className="max-w-xl w-full bg-[#fcf8f2] border-4 border-[#bca891] rounded-sm p-8 md:p-12 relative shadow-[0_25px_60px_rgba(0,0,0,0.8)] text-center my-auto transition-all transform animate-pop text-stone-900">
+              
+              {/* Wax seal watermark */}
+              <div className="absolute -right-6 -top-6 w-32 h-32 bg-arch-clay rounded-full shadow-inner flex items-center justify-center opacity-10 rotate-12 pointer-events-none">
+                <span className="text-white text-5xl font-serif font-bold">HC</span>
+              </div>
+
+              {/* Expired header icon */}
+              <div className="inline-block mb-6 relative">
+                <div className="w-20 h-20 bg-[#fef2f2] border-2 border-[#fecaca] rounded-full flex items-center justify-center shadow-lg">
+                  <span className="text-4xl">⏳</span>
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-red-600 rounded-full border-2 border-[#fcf8f2] flex items-center justify-center animate-bounce">
+                  <span className="text-white text-xs font-bold leading-none">!</span>
+                </div>
+              </div>
+
+              <h2 className="font-serif text-3xl font-black text-[#483d32] tracking-tighter uppercase mb-4 leading-tight">
+                SÜRE SINIRI DOLDU
+              </h2>
+              
+              <p className="font-sans text-sm text-stone-600 leading-relaxed mb-6">
+                Hatice Ceylan Dijital Kazı ve Çizim Atölyesi'ne göstermiş olduğunuz ilgi için teşekkür ederiz.
+              </p>
+
+              <div className="bg-[#f0e4d2]/50 border-y border-[#dfd2be] p-5 my-6 text-left space-y-3">
+                <p className="font-sans text-xs text-stone-700 leading-relaxed">
+                  Bu atölye Hatice Ceylan'ın arkeolojik çalışmaları için tasarlanmış özel mülk bir saha terminalidir. Whitelist durumunda olmayan ve misafir olarak giriş yapan kullanıcıların günlük kullanım limiti <strong className="text-arch-clay font-bold font-serif">30 dakika</strong> ile sınırlandırılmıştır.
+                </p>
+                <p className="font-serif font-bold text-[11px] text-arch-dark uppercase tracking-wider">
+                  Erişiminizi Devam Ettirmek İçin:
+                </p>
+                <ul className="text-xs text-stone-600 list-disc list-inside space-y-1 font-sans pl-1">
+                  <li>Hatice Hanım ile iletişime geçerek e-posta adresinizi <span className="font-semibold text-arch-clay">süresiz ücretsiz erişim listesine (whitelist)</span> ekletebilirsiniz.</li>
+                  <li>Hemen çalışmaya devam etmek için Atölye Premium Lisansı satın alabilirsiniz.</li>
+                </ul>
+              </div>
+
+              {/* Premium Upgrade Simulation */}
+              <div className="space-y-4">
+                <button
+                  onClick={() => {
+                    alert(
+                      "💎 Ödeme Ağ Geçidi Simülasyonu:\n\nPremium üyelik ödemesi başarıyla simüle edildikten sonra sistem, e-posta adresinizi geçici olarak 'Premium Katılımcı' statüsüne yükselterek sınırsız erişim tanımlayacaktır."
+                    );
+                    setIsUnlimited(true);
+                    setShowLimitLock(false);
+                    addLog("Premium lisansı satın alındı. Sınırsız erişim aktif.", "success");
+                  }}
+                  className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-[#c5a059] to-[#ecd49c] hover:from-[#b08b49] hover:to-[#dec286] text-stone-900 border-2 border-amber-300 font-serif font-black py-4 px-6 rounded-sm shadow-lg hover:shadow-2xl transition-all transform hover:-translate-y-0.5"
+                >
+                  <span>💎</span>
+                  <span className="uppercase tracking-[0.2em] text-xs">PREMIUM SÜRÜME GEÇ (Simülasyon)</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => {
+                      const email = auth.currentUser?.email || "";
+                      const mailtoUrl = `mailto:hc112519@gmail.com?subject=Kazı%20Atölyesi%20Erişim%20İzni&body=Merhaba%20Hatice%20Hanım,%20${email}%20e-posta%20adresimle%20Atölyenize%20ücretsiz%20erişim%20talep%20ediyorum.`;
+                      window.location.href = mailtoUrl;
+                    }}
+                    className="w-full text-center p-3 border border-stone-300 hover:border-arch-clay text-stone-700 hover:text-arch-dark font-bold text-[11px] uppercase tracking-wider rounded-sm transition-all"
+                  >
+                    ✉ Atölye ile İletişim
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await auth.signOut();
+                      window.location.reload();
+                    }}
+                    className="w-full text-center p-3 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold text-[11px] uppercase tracking-wider rounded-sm transition-all"
+                  >
+                    ← ÇıKıŞ YAP / DEĞİŞTİR
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-[#dfd2be] text-[9px] text-stone-400 font-serif uppercase tracking-[0.2em]">
+                 Hatice Ceylan Dijital Kazı Atölyesi © 2026/ARC-X
+              </div>
+
+            </div>
+          </div>
+        )}
 
       </main>
     </div>
