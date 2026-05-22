@@ -63,6 +63,9 @@ const VoiceControl: React.FC<VoiceControlProps> = ({ onNavigate }) => {
       } else if (analysis.action === 'NAVIGATE_TRANSLATE') {
         onNavigate(AppMode.TRANSLATION);
         responseText = "Epigrafik çözümleme servisine geçiliyor.";
+      } else if (analysis.action === 'NAVIGATE_EPIGRAPHY') {
+        onNavigate(AppMode.EPIGRAPHY);
+        responseText = "Kitabe Çözümleme Laboratuvarına geçiliyor.";
       } else {
         responseText = "Komut anlaşılamadı, lütfen tekrar deneyin.";
       }
@@ -86,7 +89,7 @@ const VoiceControl: React.FC<VoiceControlProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 right-24 z-50">
       <div className={`transition-all duration-300 transform ${isListening ? 'scale-110' : 'scale-100'}`}>
         <button
           onClick={handleToggleListen}

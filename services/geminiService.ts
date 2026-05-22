@@ -1,4 +1,4 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
 
 const getAIClient = () => {
   if (!process.env.API_KEY) {
@@ -82,7 +82,7 @@ export const translateDescription = async (text: string, targetLanguage: string)
   try {
     const ai = getAIClient();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: `Translate the following archaeological description into ${targetLanguage}. Keep the tone academic and precise.\n\n"${text}"`
     });
     return response.text || "Translation failed.";
@@ -98,12 +98,12 @@ export const analyzeVoiceCommand = async (transcript: string): Promise<{ action:
     const ai = getAIClient();
     const prompt = `
       Analyze this voice command from an archaeological app user: "${transcript}".
-      Map it to one of these actions: 'NAVIGATE_MAP', 'NAVIGATE_PLAN', 'NAVIGATE_ARTIFACT', 'NAVIGATE_AI', 'NAVIGATE_TRANSLATE', 'UNKNOWN'.
+      Map it to one of these actions: 'NAVIGATE_MAP', 'NAVIGATE_PLAN', 'NAVIGATE_ARTIFACT', 'NAVIGATE_AI', 'NAVIGATE_TRANSLATE', 'NAVIGATE_EPIGRAPHY', 'UNKNOWN'.
       Return ONLY a JSON object: {"action": "...", "details": "optional context"}
     `;
     
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: { responseMimeType: 'application/json' }
     });
@@ -144,7 +144,7 @@ export const chatWithAssistant = async (message: string, base64Image?: string, c
     If an image is provided, analyze it as an archaeological finding or map and provide insights.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: [
         { role: 'user', parts: [{ text: systemPrompt }] },
         { role: 'user', parts: parts }
@@ -163,10 +163,10 @@ export const generateSpeech = async (text: string): Promise<string> => {
   try {
     const ai = getAIClient();
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
+      model: "gemini-3.1-flash-tts-preview",
       contents: [{ parts: [{ text }] }],
       config: {
-        responseModalities: ["AUDIO"],
+        responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: { voiceName: 'Kore' },
@@ -182,6 +182,107 @@ export const generateSpeech = async (text: string): Promise<string> => {
     throw new Error("No audio generated.");
   } catch (error) {
     console.error("TTS Error:", error);
+    throw error;
+  }
+};
+
+// Inscription / Epigraphy analysis response structure
+export interface InscriptionAnalysis {
+  language: string;             // Dil
+  script: string;               // Yazı Sistemi
+  period: string;               // Dönem ve Tarih
+  transcription: string;        // Orijinal Yazıt Okuması
+  transliteration?: string;     // Transkripsiyon (Harf Çevirisi)
+  translationTr: string;        // Türkçe Çeviri
+  translationEn: string;        // İngilizce Çeviri
+  historicalContext: string;    // Tarihsel Bilgi ve Arkeolojik Önem
+  preservationState: string;     // Korunmuşluk Durumu
+  drawingTips?: string;         // Teknik Belgeleme ve Çizim Önerileri
+}
+
+// Decipher ancient epigraphs or inscriptions using Gemini
+export const decipherInscription = async (
+  base64Image?: string,
+  typedText?: string,
+  hintLanguage?: string
+): Promise<InscriptionAnalysis> => {
+  try {
+    const ai = getAIClient();
+    const parts: any[] = [];
+
+    let contextPrompt = `You are "Hatice Ceylan's Epigraphical AI Assistant", an elite world-class epigrapher, classicist, and archaeologist specialized in deciphering, transcribing, and translating ancient inscriptions.
+    Your task is to analyze the provided ancient inscription (which ${base64Image ? 'is in the uploaded image' : `has been transcribed as: "${typedText}"`}).`;
+
+    if (hintLanguage && hintLanguage !== "auto") {
+      contextPrompt += `\nNote: The user suspects the language/script is related to or written in "${hintLanguage}".`;
+    }
+
+    contextPrompt += `\n\nPerform a deep archaeological and linguistic analysis and output a structured JSON matching this schema:
+    {
+      "language": "Detected language (e.g., Ancient Greek, Latin, Ottoman Turkish, Classical Arabic, Luwian, Hittite cuneiform)",
+      "script": "Writing system (e.g., Greek Alphabet, Latin Alphabet, Arabic Script, Cuneiform, Hieroglyphs, Runes, Phrygian)",
+      "period": "Estimated date range or archaeological epoch (e.g., Hellenistic Period, Roman Imperial Period, MÖ 14. Yüzyıl, 18. Yüzyıl Osmanlı)",
+      "transcription": "Cleaned original character transcription (in original unicode characters if possible, e.g. Greek letters like ΔΗΜΟΣ, Ottoman script or clear transcription)",
+      "transliteration": "Latin-character transliteration (letter-by-letter representation of phonetics)",
+      "translationTr": "High-quality, professional epigraphic translation in Turkish",
+      "translationEn": "High-quality, professional epigraphic translation in English",
+      "historicalContext": "Explanatory text describing the context, who commissioned it, the type of inscription (grave stele, dedicatory, imperial decree, coin legend), historical events, or geographical insights.",
+      "preservationState": "Analysis of the physical condition (e.g., eroded characters, fragment missing, legible, wear and tear on stone)",
+      "drawingTips": "Brief advice for a draftsman/archaeologist on how to capture or sketch this inscription's relief details (e.g. highlights, shadows, charcoal squeeze method, lighting directions)"
+    }`;
+
+    parts.push({ text: contextPrompt });
+
+    if (base64Image) {
+      parts.push({
+        inlineData: {
+          mimeType: 'image/png',
+          data: cleanBase64(base64Image)
+        }
+      });
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: parts,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            language: { type: Type.STRING },
+            script: { type: Type.STRING },
+            period: { type: Type.STRING },
+            transcription: { type: Type.STRING },
+            transliteration: { type: Type.STRING },
+            translationTr: { type: Type.STRING },
+            translationEn: { type: Type.STRING },
+            historicalContext: { type: Type.STRING },
+            preservationState: { type: Type.STRING },
+            drawingTips: { type: Type.STRING }
+          },
+          required: [
+            "language",
+            "script",
+            "period",
+            "transcription",
+            "translationTr",
+            "translationEn",
+            "historicalContext",
+            "preservationState"
+          ]
+        }
+      }
+    });
+
+    const outputText = response.text;
+    if (!outputText) {
+      throw new Error("Boş YZ yanıtı döndü.");
+    }
+
+    return JSON.parse(outputText);
+  } catch (error) {
+    console.error("Epigraphy Decipherer Error:", error);
     throw error;
   }
 };

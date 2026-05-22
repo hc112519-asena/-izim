@@ -5,6 +5,7 @@ export enum AppMode {
   ARTIFACT_ILLUSTRATION = 'ARTIFACT_ILLUSTRATION',
   AI_STUDIO = 'AI_STUDIO', // Includes 3D, Text-to-Image, Image Editing
   TRANSLATION = 'TRANSLATION',
+  EPIGRAPHY = 'EPIGRAPHY',
   PROFILE = 'PROFILE'
 }
 

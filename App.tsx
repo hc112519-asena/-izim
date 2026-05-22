@@ -3,6 +3,7 @@ import { AppMode, AIJobType } from './types';
 import WorkBench from './components/WorkBench';
 import AIStudio from './components/AIStudio';
 import Translator from './components/Translator';
+import EpigraphyReader from './components/EpigraphyReader';
 import VoiceControl from './components/VoiceControl';
 import ChatAssistant from './components/ChatAssistant';
 import Profile from './components/Profile';
@@ -254,6 +255,7 @@ const App: React.FC = () => {
           </div>
 
           <NavButton mode={AppMode.AI_STUDIO} label="YZ Laboratuvarı" icon="✨" />
+          <NavButton mode={AppMode.EPIGRAPHY} label="Kitabe Çözümleme" icon="📜" />
           <NavButton mode={AppMode.TRANSLATION} label="Saha Çevirisi" icon="🌐" />
           
           <div className="mt-auto pt-6 border-t border-arch-sand">
@@ -288,7 +290,8 @@ const App: React.FC = () => {
                  {currentMode === AppMode.EXCAVATION_PLANNING && "Stratigrafik Planlama"}
                  {currentMode === AppMode.ARTIFACT_ILLUSTRATION && "Teknik İllüstrasyon"}
                  {currentMode === AppMode.AI_STUDIO && "YZ Laboratuvarı"}
-                 {currentMode === AppMode.TRANSLATION && "Epigrafik Çözümleme"}
+                 {currentMode === AppMode.EPIGRAPHY && "Kitabe Çözümleme Laboratuvarı"}
+                  {currentMode === AppMode.TRANSLATION && "Saha Çevirisi"}
                  {currentMode === AppMode.PROFILE && "Kimlik Kartı"}
                </span>
              </h2>
@@ -433,12 +436,14 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Service Grid - Technical Blueprint Look */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pb-20">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
                   {[
                     { title: "Harita Çizimi", desc: "Kartografik veriler ve topoğrafya", mode: AppMode.MAP_DRAWING, icon: "🗺", accent: "border-blue-200" },
                     { title: "Kazı Planı", desc: "Açma ve tabaka planlaması", mode: AppMode.EXCAVATION_PLANNING, icon: "📐", accent: "border-stone-300" },
                     { title: "Buluntu Çizimi", desc: "Teknik eser illüstrasyonu ve dönem kaydı", mode: AppMode.ARTIFACT_ILLUSTRATION, icon: "🏺", accent: "border-amber-300" },
-                    { title: "YZ Laboratuvarı", desc: "Metinden Görsele & Restorasyon", mode: AppMode.AI_STUDIO, icon: "✨", accent: "border-purple-200" },
+                    { title: "YZ Laboratuvarı", desc: "Metinden Görsele, 3D Modelleme ve Restorasyon", mode: AppMode.AI_STUDIO, icon: "✨", accent: "border-purple-200" },
+                    { title: "Kitabe Çözümleme", desc: "Yapay zeka asistanı ile epigrafi okuması, transkripsiyonu ve tarihsel analizi", mode: AppMode.EPIGRAPHY, icon: "📜", accent: "border-orange-300" },
+                    { title: "Saha Çevirisi", desc: "Epigrafik belgeler, saha notları ve buluntular için çok dilli çeviri servisi", mode: AppMode.TRANSLATION, icon: "🌐", accent: "border-emerald-300" }
                   ].map((card, idx) => (
                     <button 
                       key={card.title}
@@ -482,6 +487,8 @@ const App: React.FC = () => {
            )}
            
            {currentMode === AppMode.TRANSLATION && <Translator />}
+
+            {currentMode === AppMode.EPIGRAPHY && <EpigraphyReader />}
 
            {currentMode === AppMode.PROFILE && <Profile />}
         </div>
